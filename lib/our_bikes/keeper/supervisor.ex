@@ -22,17 +22,17 @@ defmodule OurBikes.Keeper.Supervisor do
     end
   end
 
-  def unlock(user_id, bike_id, platform_id) do
+  def use(user_id, bike_id, platform_id) do
     case Registry.lookup(user_id) do
       nil -> {:error, :not_found}
-      pid -> Actor.unlock(pid, bike_id, platform_id)
+      pid -> Actor.use(pid, bike_id, platform_id)
     end
   end
 
-  def lock(user_id, bike_id, platform_id) do
+  def give_back(user_id, bike_id, platform_id) do
     case Registry.lookup(user_id) do
       nil -> {:error, :not_found}
-      pid -> Actor.lock(pid, bike_id, platform_id)
+      pid -> Actor.give_back(pid, bike_id, platform_id)
     end
   end
 
@@ -41,5 +41,7 @@ defmodule OurBikes.Keeper.Supervisor do
       nil -> {:error, :not_found}
       pid -> DynamicSupervisor.terminate_child(__MODULE__, pid)
     end
+
+    Registry.unregister(user_id)
   end
 end

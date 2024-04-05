@@ -13,17 +13,16 @@ defmodule OurBikes.Keeper.Actor do
     GenServer.start_link(__MODULE__, opts, name: Registry.via(id))
   end
 
-  @spec reserve(atom() | pid() | {atom(), any()} | {:via, atom(), any()}, any(), any()) :: any()
   def reserve(pid, bike_id, platform_id) do
     GenServer.call(pid, {:reserve, bike_id, platform_id})
   end
 
-  def unlock(pid, bike_id, platform_id) do
-    GenServer.call(pid, {:unlock, bike_id, platform_id})
+  def use(pid, bike_id, platform_id) do
+    GenServer.call(pid, {:use, bike_id, platform_id})
   end
 
-  def lock(pid, bike_id, platform_id) do
-    GenServer.cast(pid, {:lock, bike_id, platform_id})
+  def give_back(pid, bike_id, platform_id) do
+    GenServer.cast(pid, {:give_back, bike_id, platform_id})
   end
 
   @impl true
@@ -32,92 +31,170 @@ defmodule OurBikes.Keeper.Actor do
   end
 
   @impl true
-  def handle_info({:check_reserve, bike_id, platform_id}, state) do
+  def handle_info(:check_reserve, state) do
+    %{
+      bike_id: bike_id,
+      platform_id: platform_id,
+      reserved_at: reserved_at
+    } = Keyword.get(state, :reserve)
+
+    now = :os.system_time(:millisecond)
+
+    if now - reserved_at > @reservation_period do
+      Logger.info("bike #{bike_id} in platform #{platform_id} reservation expired")
+
+      reserve_time_ref = Keyword.get(state, :reserve_time_ref)
+      :timer.cancel(reserve_time_ref)
+
+      {:noreply, Keyword.delete(state, :reserve)}
+    else
+      Logger.info("bike #{bike_id} in platform #{platform_id} reservation still valid")
+
+      {:noreply, state}
+    end
   end
 
   @impl true
-  def handle_info({:check_use, bike_id, platform_id}, state) do
+  def handle_info(:check_use, state) do
+    %{
+      bike_id: bike_id,
+      platform_id: platform_id,
+      picked_up_at: picked_up_at
+    } = Keyword.get(state, :using)
+
+    now = :os.system_time(:millisecond)
+
+    if now - picked_up_at > @use_period do
+      Logger.info("bike #{bike_id} in platform #{platform_id} using expired")
+
+      using_time_ref = Keyword.get(state, :using_time_ref)
+      :timer.cancel(using_time_ref)
+
+      {:noreply, Keyword.delete(state, :using)}
+    else
+      Logger.info("bike #{bike_id} in platform #{platform_id} using still valid")
+
+      {:noreply, state}
+    end
   end
 
   @impl true
   def handle_call({:reserve, bike_id, platform_id}, _from, state) do
-    Logger.info("reserve bike #{bike_id} in platform #{platform_id}")
+    reserve = %{
+      bike_id: bike_id,
+      platform_id: platform_id,
+      reserved_at: :os.system_time(:millisecond)
+    }
 
-    state =
-      Keyword.put(state, :reserve, %{
-        bike_id: bike_id,
-        platform_id: platform_id,
-        reserved_at: :os.system_time(:millisecond)
-      })
+    case Keyword.has_key?(state, :reserve) do
+      true ->
+        Logger.info("you already reserved a bike")
+        {:reply, {:error, :you_already_reserved_a_bike}, state}
 
-    {:reply, :ok, state}
+      false ->
+        Logger.info("bike #{bike_id} in platform #{platform_id} reserved")
+        {:ok, reserve_time_ref} = :timer.send_interval(5_000, self(), :check_reserve)
+
+        state =
+          state
+          |> Keyword.put(:reserve, reserve)
+          |> Keyword.put(:reserve_time_ref, reserve_time_ref)
+
+        {:reply, {:ok, reserve}, state}
+    end
   end
 
   @impl true
-  def handle_call({:unlock, bike_id, platform_id}, _from, state) do
-    Logger.info("unlock bike #{bike_id} in platform #{platform_id}")
+  def handle_call({:use, bike_id, platform_id}, _from, state) do
+    using = %{
+      bike_id: bike_id,
+      platform_id: platform_id,
+      picked_up_at: :os.system_time(:millisecond)
+    }
 
     case Keyword.get(state, :reserve) do
       nil ->
-        {:reply, {:ok, :unlocked},
-         Keyword.put(state, :used, %{
-           bike_id: bike_id,
-           platform_id: platform_id,
-           unlocked_at: :os.system_time(:millisecond)
-         })}
+        Logger.info("bike #{bike_id} in platform #{platform_id} not reserved")
 
-      %{bike_id: bike_id, platform_id: platform_id} ->
-        if bike_id == bike_id and platform_id == platform_id do
-          {
-            :reply,
-            {:ok, :unlocked},
-            state
-            |> Keyword.delete(:reserve)
-            |> Keyword.put(:used, %{
-              bike_id: bike_id,
-              platform_id: platform_id,
-              unlocked_at: :os.system_time(:millisecond)
-            })
-          }
-        else
-          {
-            :reply,
-            {:error, :not_reserved},
-            state
-          }
-        end
+        {:ok, using_time_ref} = :timer.send_interval(5_000, self(), :check_use)
+
+        reserve_time_ref = Keyword.get(state, :reserve_time_ref)
+        :timer.cancel(reserve_time_ref)
+
+        {
+          :reply,
+          {:ok, using},
+          state
+          |> Keyword.delete(:reserve)
+          |> Keyword.put(:using, using)
+          |> Keyword.put(:using_time_ref, using_time_ref)
+        }
+
+      %{
+        bike_id: ^bike_id,
+        platform_id: ^platform_id
+      } ->
+        Logger.info("bike #{bike_id} in platform #{platform_id} using")
+
+        {:ok, using_time_ref} = :timer.send_interval(5_000, self(), :check_use)
+        reserve_time_ref = Keyword.get(state, :reserve_time_ref)
+        :timer.cancel(reserve_time_ref)
+
+        {
+          :reply,
+          {:ok, using},
+          state
+          |> Keyword.delete(:reserve)
+          |> Keyword.put(:using, using)
+          |> Keyword.put(:using_time_ref, using_time_ref)
+        }
+
+      _ ->
+        Logger.info("wrong bike #{bike_id} in platform #{platform_id} reserved")
+
+        {
+          :reply,
+          {:error, :wrong_bike},
+          state
+        }
     end
-
-    {:reply, :ok, state}
   end
 
   @impl true
-  def handle_cast({:lock, bike_id, platform_id}, state) do
-    Logger.info("lock bike #{bike_id} in platform #{platform_id}")
+  def handle_cast({:give_back, bike_id, platform_id}, state) do
+    Logger.info("give back bike #{bike_id} in platform #{platform_id}")
 
-    case Keyword.get(state, :used) do
+    case Keyword.get(state, :using) do
       nil ->
         {:noreply, state}
 
-      %{bike_id: bike_id, platform_id: platform_id} ->
-        if bike_id == bike_id and platform_id == platform_id do
-          {
-            :noreply,
-            state
-            |> Keyword.delete(:used)
-            |> Keyword.put(:locked, %{
-              bike_id: bike_id,
-              platform_id: platform_id,
-              locked_at: :os.system_time(:millisecond)
-            })
-          }
-        else
-          {:noreply, state}
-        end
+      %{
+        bike_id: ^bike_id,
+        platform_id: ^platform_id
+      } ->
+        using_time_ref = Keyword.get(state, :using_time_ref)
+        :timer.cancel(using_time_ref)
+
+        state =
+          state
+          |> Keyword.delete(:using)
+          |> Keyword.put(:locked, %{
+            bike_id: bike_id,
+            platform_id: platform_id,
+            locked_at: :os.system_time(:millisecond)
+          })
+
+        {
+          :noreply,
+          state
+        }
     end
   end
 
   @impl true
-  def terminate(reason, state) do
+  def terminate(_, _) do
+    Logger.info("terminating actor")
+
+    :normal
   end
 end

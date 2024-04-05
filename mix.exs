@@ -22,7 +22,11 @@ defmodule OurBikes.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:faker, "~> 0.18.0", only: :test}
+      {:faker, "~> 0.18.0", only: :test},
+      {:ecto, "~> 3.11"},
+      {:ecto_sql, "~> 3.11"},
+      {:postgrex, "~> 0.17.5"},
+      {:ecto_sqlite3, "~> 0.15.1", only: [:test, :dev]}
     ]
   end
 end

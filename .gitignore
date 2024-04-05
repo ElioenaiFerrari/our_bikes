@@ -24,3 +24,5 @@ our_bikes-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+*.sqlite3*

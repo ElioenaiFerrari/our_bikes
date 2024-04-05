@@ -8,6 +8,7 @@ defmodule OurBikes.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      OurBikes.Repo,
       {Registry, keys: :unique, name: OurBikes.Keeper.Registry},
       {OurBikes.Keeper.Supervisor, []}
     ]
