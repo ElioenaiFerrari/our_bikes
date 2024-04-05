@@ -1,3 +1,7 @@
 defmodule OurBikes.Bike do
-  defstruct [:id, :name, :type, :price, :user_id]
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  schema "bikes" do
+  end
 end

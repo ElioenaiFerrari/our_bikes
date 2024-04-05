@@ -1,3 +1,7 @@
 defmodule OurBikes.Platform do
-  defstruct [:id, :name, :type, :price, :user_id]
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  schema "platforms" do
+  end
 end

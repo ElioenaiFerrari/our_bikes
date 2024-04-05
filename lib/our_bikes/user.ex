@@ -1,3 +1,7 @@
 defmodule OurBikes.User do
-  defstruct [:id, :name, :email]
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  schema "users" do
+  end
 end
