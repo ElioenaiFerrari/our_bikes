@@ -4,7 +4,7 @@ defmodule OurBikes.Repo.Migrations.CreateBikes do
   def change do
      create table(:bikes) do
        add :platform_id, references(:platforms, on_update: :update_all, on_delete: :delete_all)
-       add :user_id, references(:users, on_update: :update_all, on_delete: :delete_all)
+       add :user_id, references(:users, on_update: :update_all, on_delete: :delete_all), null: true
        add :name, :string
        add :price, :integer
 

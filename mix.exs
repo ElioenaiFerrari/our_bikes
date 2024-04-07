@@ -7,7 +7,12 @@ defmodule OurBikes.MixProject do
       version: "0.1.0",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      docs: [
+        main: "OurBikes",
+        source_url: "https://github.com/ElioenaiFerrari/our_bikes",
+        extras: ["README.md"]
+      ]
     ]
   end
 
@@ -26,7 +31,8 @@ defmodule OurBikes.MixProject do
       {:ecto, "~> 3.11"},
       {:ecto_sql, "~> 3.11"},
       {:postgrex, "~> 0.17.5"},
-      {:ecto_sqlite3, "~> 0.15.1", only: [:test, :dev]}
+      {:ecto_sqlite3, "~> 0.15.1", only: [:test, :dev]},
+      {:ex_doc, "~> 0.31.2", only: :dev, runtime: false}
     ]
   end
 end

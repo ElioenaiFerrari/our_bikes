@@ -1,7 +1,7 @@
 defmodule OurBikes.Keeper.Actor do
   use GenServer, restart: :transient
   alias OurBikes.Keeper.Registry
-  alias OurBikes.{User}
+  alias OurBikes.Users.{User}
   require Logger
 
   @reservation_period :timer.minutes(10)
