@@ -14,8 +14,47 @@ defmodule OurBikesWeb.Websocket do
     end
   end
 
+  defp handle(%{
+         "type" => "reserve",
+         "user_id" => user_id,
+         "bike_id" => bike_id,
+         "platform_id" => platform_id
+       }) do
+    Keeper.reserve(user_id, bike_id, platform_id)
+  end
+
+  defp handle(%{
+         "type" => "use",
+         "user_id" => user_id,
+         "bike_id" => bike_id,
+         "platform_id" => platform_id
+       }) do
+    Keeper.use(user_id, bike_id, platform_id)
+  end
+
+  defp handle(%{
+         "type" => "give_back",
+         "user_id" => user_id,
+         "bike_id" => bike_id,
+         "platform_id" => platform_id
+       }) do
+    Keeper.give_back(user_id, bike_id, platform_id)
+  end
+
   def websocket_init(state), do: {:ok, state}
-  def websocket_handle({:text, msg}, state), do: {:reply, {:text, "Echo: " <> msg}, state}
+
+  def websocket_handle({:text, msg}, state) do
+    user_id = state |> Keyword.fetch!(:user_id)
+
+    payload =
+      msg
+      |> Jason.decode!()
+      |> Map.put("user_id", user_id)
+
+    result = handle(payload)
+    {:reply, {:text, Jason.encode!(result)}, state}
+  end
+
   def websocket_handle(_data, state), do: {:ok, state}
   def websocket_terminate(_reason, _state), do: :ok
 
