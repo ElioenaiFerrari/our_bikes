@@ -14,7 +14,7 @@ defmodule OurBikes.Platforms.Platform do
     field(:lng, :float)
     has_many(:bikes, Bike, foreign_key: :platform_id)
 
-    timestamps()
+    timestamps(type: :utc_datetime)
   end
 
   @doc false

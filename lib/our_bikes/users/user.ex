@@ -12,7 +12,7 @@ defmodule OurBikes.Users.User do
     field(:password_hash, :string)
     field(:role, :string)
 
-    timestamps()
+    timestamps(type: :utc_datetime)
   end
 
   @doc false

@@ -1,67 +1,134 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
 
-  <button id="reserve">Reservar</button>
-  <button id="use">Usar</button>
-  <button id="giveBack">Devolver</button>
-</head>
-<body>
-  
-</body>
-<script>
-  const reserveButton = document.getElementById('reserve');
-  const useButton = document.getElementById('use');
-  const giveBackButton = document.getElementById('giveBack');
+    <ul id="bikes"></ul>
+  </head>
+  <body></body>
+  <script>
+    const getBikes = async (platformId) => {
+      const response = await fetch(
+        `http://localhost:4000/api/platforms/${platformId}/bikes`
+      );
+      const data = await response.json();
 
-  const reserve = (bikeId, platformId)=>({
-    type: 'reserve',
-    bike_id: bikeId,
-    platform_id: platformId
-  })
+      return data;
+    };
 
-  const use = (bikeId, platformId)=>({
-    type: 'use',
-    bike_id: bikeId,
-    platform_id: platformId
-  })
+    const userId = "cbe3a9dd-8995-4422-9953-603931728a6c";
+    const platformId = "c3004ff7-55c3-470a-96f1-5db05a8d1048";
+    const reserve = (bikeId, platformId) => ({
+      type: "reserve",
+      bike_id: bikeId,
+      platform_id: platformId,
+    });
 
-  const giveBack = (bikeId, platformId)=>({
-    type: 'give_back',
-    bike_id: bikeId,
-    platform_id: platformId
-  })
+    const use = (bikeId, platformId) => ({
+      type: "use",
+      bike_id: bikeId,
+      platform_id: platformId,
+    });
 
-  const ws = new WebSocket('ws://localhost:4000/ws/dbd4074a-2ed1-43b3-9136-3ccba248d235');
+    const giveBack = (bikeId, platformId) => ({
+      type: "give_back",
+      bike_id: bikeId,
+      platform_id: platformId,
+    });
 
+    const buildBikesList = async () => {
+      const bikesList = document.getElementById("bikes");
+      bikesList.innerHTML = "";
+      const bikes = await getBikes(platformId);
 
-  reserveButton.addEventListener('click', (e)=>{
-    e.preventDefault()
-    ws.send(JSON.stringify(reserve('95079c32-beec-4b23-8ad6-59a2bb0a0b72', '332109a8-45f0-40e5-aa72-51ea598befe9')))
-  })
+      bikes.forEach((bike) => {
+        const statusSpan = document.createElement("span");
+        statusSpan.innerText = bike.status;
+        statusSpan.classList.add(`status-${bike.status}`);
 
-  useButton.addEventListener('click', (e)=>{
-    e.preventDefault()
-    ws.send(JSON.stringify(use('95079c32-beec-4b23-8ad6-59a2bb0a0b72', '332109a8-45f0-40e5-aa72-51ea598befe9')))
-  })
+        const reserveButton = document.createElement("button");
+        reserveButton.innerText = "Reserve";
+        const useButton = document.createElement("button");
+        useButton.innerText = "Use";
+        const giveBackButton = document.createElement("button");
+        giveBackButton.innerText = "Give Back";
 
-  giveBackButton.addEventListener('click', (e)=>{
-    e.preventDefault()
-    ws.send(JSON.stringify(giveBack('95079c32-beec-4b23-8ad6-59a2bb0a0b72', '332109a8-45f0-40e5-aa72-51ea598befe9')))
-  })
+        reserveButton.addEventListener("click", (e) => {
+          e.preventDefault();
+          ws.send(JSON.stringify(reserve(bike.id, bike.platform_id)));
+        });
 
-  ws.onmessage = (msg) => {
-    console.log(msg.data);
-  }
+        useButton.addEventListener("click", (e) => {
+          e.preventDefault();
+          ws.send(JSON.stringify(use(bike.id, bike.platform_id)));
+        });
 
-  ws.onopen = () => {
-    console.log('connected');
-  }
+        giveBackButton.addEventListener("click", (e) => {
+          e.preventDefault();
+          ws.send(JSON.stringify(giveBack(bike.id, bike.platform_id)));
+        });
 
+        const li = document.createElement("li");
+        li.classList.add("bike");
+        li.innerText = bike.id;
 
+        li.appendChild(statusSpan);
+        li.appendChild(reserveButton);
+        li.appendChild(useButton);
+        li.appendChild(giveBackButton);
 
-</script>
+        bikesList.appendChild(li);
+      });
+    };
+
+    const ws = new WebSocket(`ws://localhost:4000/ws/${userId}`);
+
+    ws.onmessage = async (msg) => {
+      const data = JSON.parse(msg.data);
+
+      if (!data.error) {
+        await buildBikesList();
+      }
+    };
+
+    ws.onopen = () => {
+      console.log("connected");
+    };
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      await buildBikesList();
+    });
+  </script>
+
+  <style>
+    #bikes {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .bike {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .status-available {
+      color: green;
+    }
+
+    .status-reserved {
+      color: orange;
+    }
+
+    .status-in_use {
+      color: red;
+    }
+  </style>
 </html>

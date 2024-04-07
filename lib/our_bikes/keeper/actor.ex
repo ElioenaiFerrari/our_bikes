@@ -1,17 +1,26 @@
 defmodule OurBikes.Keeper.Actor do
   use GenServer, restart: :transient
+  alias ElixirSense.Log
   alias OurBikes.Keeper.Registry
+  alias OurBikes.Users
   alias OurBikes.Users.User
   alias OurBikes.Bikes
   alias OurBikes.Bikes.Bike
 
   require Logger
 
-  @reservation_period :timer.minutes(10)
-  @use_period :timer.minutes(45)
+  # 5 minutes in seconds is 300 seconds
+  @reservation_period 300
+  # 45 minutes in seconds is 2700 seconds
+  @use_period 2700
+  # Check every 1 minute
+  @check_period :timer.minutes(1)
 
   def start_link(opts) do
     %User{id: id} = Keyword.fetch!(opts, :user) || raise ArgumentError, "missing :user option"
+
+    # parent_pid =
+    #   Keyword.fetch!(opts, :parent_pid) || raise ArgumentError, "missing :parent_pid option"
 
     GenServer.start_link(__MODULE__, opts, name: Registry.via(id))
   end
@@ -25,95 +34,123 @@ defmodule OurBikes.Keeper.Actor do
   end
 
   def give_back(pid, bike_id, platform_id) do
-    GenServer.cast(pid, {:give_back, bike_id, platform_id})
+    GenServer.call(pid, {:give_back, bike_id, platform_id})
   end
 
   @impl true
   def init(opts) do
+    user = Keyword.fetch!(opts, :user)
+
+    opts =
+      case Bikes.get_bike_by_user_id(user.id) do
+        nil ->
+          Logger.info("keeper started for user #{user.id} without bike")
+          opts
+
+        %Bike{status: "reserved"} = bike ->
+          Logger.info("keeper started for user #{user.id} with reserved bike #{bike.id}")
+          {:ok, reserve_time_ref} = :timer.send_interval(@check_period, self(), :check_reserve)
+          Keyword.put(opts, :reserve_time_ref, reserve_time_ref)
+
+        %Bike{status: "in_use"} = bike ->
+          Logger.info("keeper started for user #{user.id} with using bike #{bike.id}")
+          {:ok, using_time_ref} = :timer.send_interval(@check_period, self(), :check_use)
+          Keyword.put(opts, :using_time_ref, using_time_ref)
+      end
+
     {:ok, opts}
   end
 
   @impl true
   def handle_info(:check_reserve, state) do
-    %{
-      bike_id: bike_id,
-      platform_id: platform_id,
-      reserved_at: reserved_at
-    } = Keyword.get(state, :reserve)
+    Logger.info("checking reservation")
 
-    now = :os.system_time(:millisecond)
+    with %User{} = user <- Keyword.fetch!(state, :user),
+         _ <- Logger.info("user found: #{inspect(user)}"),
+         %Bike{updated_at: updated_at, status: "reserved"} = bike <-
+           Bikes.get_bike_by_user_id(user.id),
+         _ <- Logger.info("bike found: #{inspect(bike)}") do
+      diff_seconds =
+        updated_at
+        |> DateTime.diff(DateTime.utc_now())
+        |> abs()
 
-    if now - reserved_at > @reservation_period do
-      Logger.info("bike #{bike_id} in platform #{platform_id} reservation expired")
+      Logger.info(
+        "reserve diff_seconds: #{diff_seconds}, reservation_period: #{@reservation_period}"
+      )
 
-      with reserve_time_ref <- Keyword.get(state, :reserve_time_ref),
-           {:ok, _} <- :timer.cancel(reserve_time_ref),
-           %Bike{status: "reserved"} = bike <- Bikes.get_bike(bike_id),
-           {:ok, _bike} <- Bikes.give_back_bike(bike, platform_id),
-           state <-
-             state
-             |> Keyword.delete(:reserve)
-             |> Keyword.delete(:reserve_time_ref) do
-        Logger.warning("bike #{bike_id} in platform #{platform_id} given back")
+      if diff_seconds >= @reservation_period do
+        Logger.info("bike #{bike.id} in platform #{bike.platform_id} reservation expired")
+
+        with reserve_time_ref <- Keyword.get(state, :reserve_time_ref),
+             {:ok, _bike} <- Bikes.give_back_bike(bike, bike.platform_id),
+             state <- Keyword.delete(state, :reserve_time_ref),
+             {:ok, _} <- :timer.cancel(reserve_time_ref) do
+          Logger.warning("bike #{bike.id} in platform #{bike.platform_id} given back")
+
+          {:noreply, state}
+        end
+      else
+        Logger.info("bike #{bike.id} in platform #{bike.platform_id} reservation still valid")
 
         {:noreply, state}
       end
     else
-      Logger.info("bike #{bike_id} in platform #{platform_id} reservation still valid")
+      err ->
+        Logger.error("unexpected error #{inspect(err)}")
 
-      {:noreply, state}
+        {:noreply, state}
     end
   end
 
   @impl true
   def handle_info(:check_use, state) do
-    %{
-      bike_id: bike_id,
-      platform_id: platform_id,
-      picked_up_at: picked_up_at
-    } = Keyword.get(state, :using)
+    with %User{} = user <- Keyword.fetch!(state, :user),
+         _ <- Logger.info("user found: #{inspect(user)}"),
+         %Bike{updated_at: updated_at, status: "in_use"} = bike <-
+           Bikes.get_bike_by_user_id(user.id),
+         _ <- Logger.info("bike found: #{inspect(bike)}") do
+      diff_seconds =
+        updated_at
+        |> DateTime.diff(DateTime.utc_now())
+        |> abs()
 
-    now = :os.system_time(:millisecond)
+      Logger.info("using diff_seconds: #{diff_seconds}, use_period: #{@use_period}")
 
-    if now - picked_up_at > @use_period do
-      Logger.warning("bike #{bike_id} in platform #{platform_id} using expired")
+      if diff_seconds >= @use_period do
+        Logger.warning("bike #{bike.id} in platform #{bike.platform_id} using expired")
 
-      using_time_ref = Keyword.get(state, :using_time_ref)
-      :timer.cancel(using_time_ref)
+        with using_time_ref <- Keyword.get(state, :using_time_ref),
+             {:ok, _} <- :timer.cancel(using_time_ref),
+             state <- Keyword.delete(state, :using_time_ref),
+             {:ok, _} <- Bikes.give_back_bike(bike, bike.platform_id) do
+          {:noreply, state}
+        end
+      else
+        Logger.info("bike #{bike.id} in platform #{bike.platform_id} using still valid")
 
-      {:noreply,
-       state
-       |> Keyword.delete(:using)
-       |> Keyword.delete(:using_time_ref)}
-    else
-      Logger.info("bike #{bike_id} in platform #{platform_id} using still valid")
-
-      {:noreply, state}
+        {:noreply, state}
+      end
     end
   end
 
   @impl true
   def handle_call({:reserve, bike_id, platform_id}, _from, state) do
-    with reserve <- %{
+    with %User{} = user <- Keyword.fetch!(state, :user),
+         reserve <- %{
            bike_id: bike_id,
-           platform_id: platform_id,
-           reserved_at: :os.system_time(:millisecond)
+           platform_id: platform_id
          },
-         false <- Keyword.has_key?(state, :reserve),
+         nil <- Bikes.get_bike_by_user_id(user.id),
          %Bike{status: "available", platform_id: ^platform_id} = bike <- Bikes.get_bike(bike_id),
-         {:ok, %Bike{status: "reserved"}} <- Bikes.reserve_bike(bike),
-         {:ok, reserve_time_ref} <- :timer.send_interval(5_000, self(), :check_reserve),
+         {:ok, %Bike{status: "reserved"}} <- Bikes.reserve_bike(user.id, bike),
+         {:ok, reserve_time_ref} <- :timer.send_interval(@check_period, self(), :check_reserve),
          state <-
            state
-           |> Keyword.put(:reserve, reserve)
            |> Keyword.put(:reserve_time_ref, reserve_time_ref) do
       Logger.info("bike #{bike_id} in platform #{platform_id} reserved")
       {:reply, {:ok, reserve}, state}
     else
-      true ->
-        Logger.warning("single reservation per user")
-        {:reply, {:error, :single_reservation_per_user}, state}
-
       {:error, reason} ->
         Logger.error("unexpected error #{inspect(reason)}")
         {:reply, {:error, reason}, state}
@@ -134,39 +171,25 @@ defmodule OurBikes.Keeper.Actor do
 
   @impl true
   def handle_call({:use, bike_id, platform_id}, _from, state) do
-    case Keyword.get(state, :reserve) do
+    user = Keyword.fetch!(state, :user)
+
+    case Bikes.get_bike_by_user_id(user.id) do
       nil ->
-        with using <- %{
-               bike_id: bike_id,
-               platform_id: platform_id,
-               picked_up_at: :os.system_time(:millisecond)
-             },
-             {:ok, using_time_ref} <- :timer.send_interval(5_000, self(), :check_use),
-             %Bike{status: "available"} = bike <- Bikes.get_bike(bike_id),
-             {:ok, _bike} <- Bikes.use_bike(bike),
+        with %Bike{status: "available"} = bike <- Bikes.get_bike(bike_id),
+             {:ok, _bike} <- Bikes.use_bike(user.id, bike),
+             {:ok, using_time_ref} <- :timer.send_interval(@check_period, self(), :check_use),
              state <-
                state
-               |> Keyword.delete(:reserve)
                |> Keyword.delete(:reserve_time_ref)
-               |> Keyword.put(:using, using)
                |> Keyword.put(:using_time_ref, using_time_ref) do
           Logger.info("using bike #{bike_id} in platform #{platform_id} without reservation")
 
           {
             :reply,
-            {:ok, using},
+            {:ok, bike},
             state
           }
         else
-          %Bike{status: "reserved"} ->
-            Logger.warning("bike #{bike_id} in platform #{platform_id} already reserved")
-
-            {
-              :reply,
-              {:error, :already_reserved},
-              state
-            }
-
           %Bike{status: "in_use"} ->
             Logger.warning("bike #{bike_id} in platform #{platform_id} already in use")
 
@@ -175,6 +198,28 @@ defmodule OurBikes.Keeper.Actor do
               {:error, :already_in_use},
               state
             }
+
+          %Bike{
+            status: "reserved",
+            id: ^bike_id,
+            platform_id: ^platform_id,
+            user_id: user_id
+          } = bike ->
+            with true <- user_id == user.id,
+                 {:ok, _bike} <- Bikes.use_bike(user.id, bike),
+                 {:ok, using_time_ref} <- :timer.send_interval(@check_period, self(), :check_use),
+                 state <-
+                   state
+                   |> Keyword.delete(:reserve_time_ref)
+                   |> Keyword.put(:using_time_ref, using_time_ref) do
+              Logger.info("using bike #{bike_id} in platform #{platform_id} with reservation")
+
+              {
+                :reply,
+                {:ok, bike},
+                state
+              }
+            end
 
           {:error, reason} ->
             Logger.error("unexpected error #{inspect(reason)}")
@@ -186,33 +231,47 @@ defmodule OurBikes.Keeper.Actor do
             }
         end
 
-      %{
-        bike_id: ^bike_id,
-        platform_id: ^platform_id
-      } ->
-        with using <- %{
-               bike_id: bike_id,
-               platform_id: platform_id,
-               picked_up_at: :os.system_time(:millisecond)
-             },
-             {:ok, using_time_ref} <- :timer.send_interval(5_000, self(), :check_use),
+      %Bike{
+        id: ^bike_id,
+        platform_id: ^platform_id,
+        user_id: user_id
+      } = bike ->
+        with true <- user_id == user.id,
+             %Bike{status: "reserved"} <- bike,
+             {:ok, _} <- Bikes.use_bike(user.id, bike),
              reserve_time_ref <- Keyword.get(state, :reserve_time_ref),
              {:ok, _} <- :timer.cancel(reserve_time_ref),
-             %Bike{status: "reserved"} <- Bikes.get_bike(bike_id),
+             {:ok, using_time_ref} <- :timer.send_interval(@check_period, self(), :check_use),
              state <-
                state
-               |> Keyword.delete(:reserve)
                |> Keyword.delete(:reserve_time_ref)
-               |> Keyword.put(:using, using)
                |> Keyword.put(:using_time_ref, using_time_ref) do
           Logger.info("using bike #{bike_id} in platform #{platform_id} with reservation")
 
           {
             :reply,
-            {:ok, using},
+            {:ok, bike},
             state
           }
         else
+          false ->
+            Logger.info("wrong user #{user.id} for bike #{bike_id} in platform #{platform_id}")
+
+            {
+              :reply,
+              {:error, :reserved_by_another_user},
+              state
+            }
+
+          %Bike{status: "in_use"} ->
+            Logger.info("bike #{bike_id} in platform #{platform_id} already in use")
+
+            {
+              :reply,
+              {:error, :already_in_use},
+              state
+            }
+
           {:error, reason} ->
             Logger.info("bike #{bike_id} in platform #{platform_id} already in use")
 
@@ -235,46 +294,43 @@ defmodule OurBikes.Keeper.Actor do
   end
 
   @impl true
-  def handle_cast({:give_back, bike_id, platform_id}, state) do
+  def handle_call({:give_back, bike_id, platform_id}, _from, state) do
     Logger.info("give back bike #{bike_id} in platform #{platform_id}")
 
-    case Keyword.get(state, :using) do
-      nil ->
-        {:noreply, state}
+    user = Keyword.fetch!(state, :user)
 
-      %{
-        bike_id: ^bike_id,
-        platform_id: ^platform_id
-      } ->
+    case Bikes.get_bike_by_user_id(user.id) do
+      nil ->
+        {:reply, {:error, :not_reserved}, state}
+
+      %Bike{
+        id: ^bike_id,
+        platform_id: ^platform_id,
+        status: "in_use"
+      } = bike ->
         with using_time_ref <- Keyword.get(state, :using_time_ref),
              {:ok, _} <- :timer.cancel(using_time_ref),
-             %Bike{status: "in_use"} = bike <- Bikes.get_bike(bike_id),
-             {:ok, _bike} <- Bikes.give_back_bike(bike, platform_id),
-             state <-
-               state
-               |> Keyword.delete(:using)
-               |> Keyword.delete(:using_time_ref)
-               |> Keyword.put(:picked_up, %{
-                 bike_id: bike_id,
-                 platform_id: platform_id,
-                 picked_up_at: :os.system_time(:millisecond)
-               }) do
+             {:ok, bike} <- Bikes.give_back_bike(bike, platform_id),
+             state <- Keyword.delete(state, :using_time_ref) do
           Logger.info("bike #{bike_id} in platform #{platform_id} given back")
 
           {
-            :noreply,
+            :reply,
+            {:ok, bike},
             state
           }
         end
 
-      %{
-        bike_id: bike_id,
-        platform_id: platform_id
+      %Bike{
+        id: ^bike_id,
+        platform_id: ^platform_id,
+        status: "reserved"
       } ->
-        Logger.error("wrong bike #{bike_id} in platform #{platform_id} during given back")
+        Logger.warning("bike #{bike_id} in platform #{platform_id} not in use")
 
         {
-          :noreply,
+          :reply,
+          {:error, :not_reserved},
           state
         }
     end

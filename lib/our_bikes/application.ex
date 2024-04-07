@@ -13,7 +13,7 @@ defmodule OurBikes.Application do
       {OurBikes.Keeper, []},
       {
         Plug.Cowboy,
-        scheme: :http, plug: OurBikesWeb.Router, options: [port: 4000], dispatch: dispatch()
+        scheme: :http, plug: OurBikesWeb.Endpoint, options: [port: 4000], dispatch: dispatch()
       }
     ]
 
@@ -29,7 +29,7 @@ defmodule OurBikes.Application do
         :_,
         [
           {"/ws/:user_id", OurBikesWeb.Websocket, []},
-          {:_, Plug.Cowboy.Handler, {OurBikesWeb.Router, []}}
+          {:_, Plug.Cowboy.Handler, {OurBikesWeb.Endpoint, []}}
         ]
       }
     ]

@@ -9,7 +9,7 @@ defmodule OurBikes.Repo.Migrations.CreateUsers do
       add :password_hash, :string
       add :role, :string
 
-      timestamps()
+      timestamps(type: :utc_datetime)
     end
   end
 end

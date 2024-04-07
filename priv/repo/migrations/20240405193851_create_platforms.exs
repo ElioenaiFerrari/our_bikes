@@ -8,7 +8,7 @@ defmodule OurBikes.Repo.Migrations.CreatePlatforms do
       add :lat, :float
       add :lng, :float
 
-      timestamps()
+      timestamps(type: :utc_datetime)
     end
   end
 end

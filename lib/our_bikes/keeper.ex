@@ -12,7 +12,10 @@ defmodule OurBikes.Keeper do
   end
 
   def start_actor(user) do
-    DynamicSupervisor.start_child(__MODULE__, {Actor, user: user})
+    case Registry.lookup(user.id) do
+      nil -> DynamicSupervisor.start_child(__MODULE__, {Actor, user: user})
+      _ -> {:error, :already_started}
+    end
   end
 
   def reserve(user_id, bike_id, platform_id) do

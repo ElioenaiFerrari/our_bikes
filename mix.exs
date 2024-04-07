@@ -35,7 +35,8 @@ defmodule OurBikes.MixProject do
       {:ecto_sqlite3, "~> 0.15.1", only: [:test, :dev]},
       {:ex_doc, "~> 0.31.2", only: :dev, runtime: false},
       {:plug_cowboy, "~> 2.7"},
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      {:cors_plug, "~> 3.0"}
     ]
   end
 
