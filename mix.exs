@@ -33,7 +33,9 @@ defmodule OurBikes.MixProject do
       {:ecto_sql, "~> 3.11"},
       {:postgrex, "~> 0.17.5"},
       {:ecto_sqlite3, "~> 0.15.1", only: [:test, :dev]},
-      {:ex_doc, "~> 0.31.2", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.31.2", only: :dev, runtime: false},
+      {:plug_cowboy, "~> 2.7"},
+      {:jason, "~> 1.4"}
     ]
   end
 

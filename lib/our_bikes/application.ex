@@ -10,12 +10,28 @@ defmodule OurBikes.Application do
     children = [
       OurBikes.Repo,
       {Registry, keys: :unique, name: OurBikes.Keeper.Registry},
-      {OurBikes.Keeper, []}
+      {OurBikes.Keeper, []},
+      {
+        Plug.Cowboy,
+        scheme: :http, plug: OurBikesWeb.Router, options: [port: 4000], dispatch: dispatch()
+      }
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: OurBikes.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp dispatch do
+    [
+      {
+        :_,
+        [
+          {"/ws/:user_id", OurBikesWeb.Websocket, []},
+          {:_, Plug.Cowboy.Handler, {OurBikesWeb.Router, []}}
+        ]
+      }
+    ]
   end
 end

@@ -1,12 +1,9 @@
 defmodule OurBikes.Keeper.Actor do
   use GenServer, restart: :transient
   alias OurBikes.Keeper.Registry
-  alias OurBikes.Users
   alias OurBikes.Users.User
   alias OurBikes.Bikes
   alias OurBikes.Bikes.Bike
-  alias OurBikes.Platforms
-  alias OurBikes.Platforms.Platform
 
   require Logger
 

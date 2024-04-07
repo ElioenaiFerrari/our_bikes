@@ -57,27 +57,27 @@ alias OurBikes.{Platforms, Bikes, Users, Keeper}
 })
 
 
-Keeper.start_actor(user1)
-Keeper.start_actor(user2)
-Keeper.start_actor(user3)
+# Keeper.start_actor(user1)
+# Keeper.start_actor(user2)
+# Keeper.start_actor(user3)
 
 
-Logger.info("reserve")
+# Logger.info("reserve")
 
-IO.inspect(Keeper.reserve(user1.id, bike1.id, platform2.id))
-IO.inspect(Keeper.reserve(user1.id, bike1.id, platform1.id))
-IO.inspect(Keeper.reserve(user1.id, bike1.id, platform2.id))
-IO.inspect(Keeper.reserve(user2.id, bike1.id, platform2.id))
+# IO.inspect(Keeper.reserve(user1.id, bike1.id, platform2.id))
+# IO.inspect(Keeper.reserve(user1.id, bike1.id, platform1.id))
+# IO.inspect(Keeper.reserve(user1.id, bike1.id, platform2.id))
+# IO.inspect(Keeper.reserve(user2.id, bike1.id, platform2.id))
 
-Logger.info("use")
+# Logger.info("use")
 
-IO.inspect(Keeper.use(user1.id, bike1.id, platform2.id))
-IO.inspect(Keeper.use(user1.id, bike1.id, platform1.id))
-IO.inspect(Keeper.use(user1.id, bike1.id, platform2.id))
-IO.inspect(Keeper.use(user2.id, bike1.id, platform2.id))
-IO.inspect(Keeper.use(user2.id, bike2.id, platform2.id))
-IO.inspect(Keeper.use(user2.id, bike2.id, platform2.id))
+# IO.inspect(Keeper.use(user1.id, bike1.id, platform2.id))
+# IO.inspect(Keeper.use(user1.id, bike1.id, platform1.id))
+# IO.inspect(Keeper.use(user1.id, bike1.id, platform2.id))
+# IO.inspect(Keeper.use(user2.id, bike1.id, platform2.id))
+# IO.inspect(Keeper.use(user2.id, bike2.id, platform2.id))
+# IO.inspect(Keeper.use(user2.id, bike2.id, platform2.id))
 
-IO.inspect(Keeper.use(user3.id, bike3.id, platform3.id))
-IO.inspect(Keeper.give_back(user1.id, bike3.id, platform3.id))
-IO.inspect(Keeper.give_back(user3.id, bike3.id, platform3.id))
+# IO.inspect(Keeper.use(user3.id, bike3.id, platform3.id))
+# IO.inspect(Keeper.give_back(user1.id, bike3.id, platform3.id))
+# IO.inspect(Keeper.give_back(user3.id, bike3.id, platform3.id))
