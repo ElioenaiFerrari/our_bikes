@@ -12,7 +12,8 @@ defmodule OurBikes.MixProject do
         main: "OurBikes",
         source_url: "https://github.com/ElioenaiFerrari/our_bikes",
         extras: ["README.md"]
-      ]
+      ],
+      aliases: aliases()
     ]
   end
 
@@ -27,12 +28,19 @@ defmodule OurBikes.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:faker, "~> 0.18.0", only: :test},
+      {:faker, "~> 0.18.0", only: [:test, :dev]},
       {:ecto, "~> 3.11"},
       {:ecto_sql, "~> 3.11"},
       {:postgrex, "~> 0.17.5"},
       {:ecto_sqlite3, "~> 0.15.1", only: [:test, :dev]},
       {:ex_doc, "~> 0.31.2", only: :dev, runtime: false}
+    ]
+  end
+
+  defp aliases do
+    [
+      "ecto.setup": ["ecto.drop", "ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
+      "ecto.reset": ["ecto.drop", "ecto.setup"]
     ]
   end
 end

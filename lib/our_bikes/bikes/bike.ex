@@ -1,13 +1,15 @@
 defmodule OurBikes.Bikes.Bike do
   use Ecto.Schema
   import Ecto.Changeset
-  alias OurBikes.{Platform, User}
+  alias OurBikes.Platforms.Platform
+  @status ~w(available reserved in_use)
 
+  @primary_key {:id, :binary_id, autogenerate: true}
+  @foreign_key_type :binary_id
   schema "bikes" do
-    field(:name, :string)
+    field(:status, :string, default: "available")
     field(:price, :integer)
     belongs_to(:platform, Platform, foreign_key: :platform_id)
-    belongs_to(:user, User, foreign_key: :user_id)
 
     timestamps()
   end
@@ -15,7 +17,8 @@ defmodule OurBikes.Bikes.Bike do
   @doc false
   def changeset(bike, attrs) do
     bike
-    |> cast(attrs, [:name, :price, :platform_id, :user_id])
-    |> validate_required([:name, :price, :platform_id, :user_id])
+    |> cast(attrs, [:price, :platform_id, :status])
+    |> validate_required([:price, :platform_id])
+    |> validate_inclusion(:status, @status)
   end
 end

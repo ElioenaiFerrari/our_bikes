@@ -34,4 +34,22 @@ defmodule OurBikes.Bikes do
   def delete_bike(bike) do
     Repo.delete(bike)
   end
+
+  def reserve_bike(bike) do
+    bike
+    |> Bike.changeset(%{status: "reserved"})
+    |> Repo.update()
+  end
+
+  def use_bike(bike) do
+    bike
+    |> Bike.changeset(%{status: "in_use"})
+    |> Repo.update()
+  end
+
+  def give_back_bike(bike, platform_id) do
+    bike
+    |> Bike.changeset(%{status: "available", platform_id: platform_id})
+    |> Repo.update()
+  end
 end

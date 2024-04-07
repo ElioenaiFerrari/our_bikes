@@ -4,10 +4,15 @@ defmodule OurBikes.Platforms.Platform do
   """
   use Ecto.Schema
   import Ecto.Changeset
+  alias OurBikes.Bikes.Bike
 
+  @primary_key {:id, :binary_id, autogenerate: true}
+  @foreign_key_type :binary_id
   schema "platforms" do
+    field(:name, :string)
     field(:lat, :float)
     field(:lng, :float)
+    has_many(:bikes, Bike, foreign_key: :platform_id)
 
     timestamps()
   end
@@ -15,7 +20,7 @@ defmodule OurBikes.Platforms.Platform do
   @doc false
   def changeset(platform, attrs) do
     platform
-    |> cast(attrs, [:lat, :lng])
-    |> validate_required([:lat, :lng])
+    |> cast(attrs, [:name, :lat, :lng])
+    |> validate_required([:name, :lat, :lng])
   end
 end

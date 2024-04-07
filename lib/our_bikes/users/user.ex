@@ -3,6 +3,8 @@ defmodule OurBikes.Users.User do
   import Ecto.Changeset
   @roles ~w(admin user)
 
+  @primary_key {:id, :binary_id, autogenerate: true}
+  @foreign_key_type :binary_id
   schema "users" do
     field(:name, :string)
     field(:email, :string)
@@ -16,8 +18,8 @@ defmodule OurBikes.Users.User do
   @doc false
   def changeset(user, attrs) do
     user
-    |> cast(attrs, [:name, :email, :password_hash, :role])
-    |> validate_required([:name, :email, :password_hash, :role])
+    |> cast(attrs, [:name, :email, :password, :role])
+    |> validate_required([:name, :email, :password, :role])
     |> validate_format(:email, ~r/\A[\w+\-.]+@[a-z\d\-]+(\.[a-z]+)*\.[a-z]+\z/i)
     |> validate_inclusion(:role, @roles)
   end

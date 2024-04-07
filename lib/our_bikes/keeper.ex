@@ -1,4 +1,4 @@
-defmodule OurBikes.Keeper.Supervisor do
+defmodule OurBikes.Keeper do
   use DynamicSupervisor
   alias OurBikes.Keeper.{Actor, Registry}
 

@@ -10,7 +10,7 @@ defmodule OurBikes.Application do
     children = [
       OurBikes.Repo,
       {Registry, keys: :unique, name: OurBikes.Keeper.Registry},
-      {OurBikes.Keeper.Supervisor, []}
+      {OurBikes.Keeper, []}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
