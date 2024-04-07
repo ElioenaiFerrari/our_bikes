@@ -44,4 +44,11 @@ defmodule OurBikes.Keeper do
 
     Registry.unregister(user_id)
   end
+
+  def state(user_id) do
+    case Registry.lookup(user_id) do
+      nil -> {:error, :not_found}
+      pid -> :sys.get_state(pid)
+    end
+  end
 end
