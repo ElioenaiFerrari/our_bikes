@@ -1,9 +1,21 @@
 defmodule OurBikes.Keeper do
   use DynamicSupervisor
   alias OurBikes.Keeper.{Actor, Registry}
+  alias OurBikes.Bikes
+  require Logger
 
   def start_link(opts) do
-    DynamicSupervisor.start_link(__MODULE__, opts, name: __MODULE__)
+    state = DynamicSupervisor.start_link(__MODULE__, opts, name: __MODULE__)
+
+    recover_state()
+
+    state
+  end
+
+  defp recover_state() do
+    bikes = Bikes.list_no_available_bikes()
+    Logger.info("recovering state for #{Enum.count(bikes)} bikes")
+    Enum.each(bikes, &start_actor(&1.user))
   end
 
   @impl true

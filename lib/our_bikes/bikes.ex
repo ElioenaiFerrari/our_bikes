@@ -21,6 +21,13 @@ defmodule OurBikes.Bikes do
     |> Repo.all()
   end
 
+  def list_no_available_bikes() do
+    (b in Bike)
+    |> from(where: b.status != "available")
+    |> Repo.all()
+    |> Repo.preload(:user)
+  end
+
   def get_bike(id) do
     Bike
     |> Repo.get(id)

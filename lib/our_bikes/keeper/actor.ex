@@ -1,8 +1,6 @@
 defmodule OurBikes.Keeper.Actor do
   use GenServer, restart: :transient
-  alias ElixirSense.Log
   alias OurBikes.Keeper.Registry
-  alias OurBikes.Users
   alias OurBikes.Users.User
   alias OurBikes.Bikes
   alias OurBikes.Bikes.Bike
@@ -49,11 +47,13 @@ defmodule OurBikes.Keeper.Actor do
 
         %Bike{status: "reserved"} = bike ->
           Logger.info("keeper started for user #{user.id} with reserved bike #{bike.id}")
+          Process.send(self(), :check_reserve, [])
           {:ok, reserve_time_ref} = :timer.send_interval(@check_period, self(), :check_reserve)
           Keyword.put(opts, :reserve_time_ref, reserve_time_ref)
 
         %Bike{status: "in_use"} = bike ->
           Logger.info("keeper started for user #{user.id} with using bike #{bike.id}")
+          Process.send(self(), :check_use, [])
           {:ok, using_time_ref} = :timer.send_interval(@check_period, self(), :check_use)
           Keyword.put(opts, :using_time_ref, using_time_ref)
       end
