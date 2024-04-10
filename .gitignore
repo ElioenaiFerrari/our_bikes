@@ -26,3 +26,4 @@ our_bikes-*.tar
 /tmp/
 
 *.sqlite3*
+.elixir_ls/

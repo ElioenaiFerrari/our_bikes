@@ -28,7 +28,7 @@ defmodule OurBikes.Application do
       {
         :_,
         [
-          {"/ws/:user_id", OurBikesWeb.Websocket, []},
+          {"/ws/[...]", OurBikesWeb.Websocket, []},
           {:_, Plug.Cowboy.Handler, {OurBikesWeb.Endpoint, []}}
         ]
       }

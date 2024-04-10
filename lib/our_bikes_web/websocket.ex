@@ -5,15 +5,24 @@ defmodule OurBikesWeb.Websocket do
   alias OurBikes.Keeper
   require Logger
 
-  def init(req, state) do
-    with %{user_id: user_id} <- Map.get(req, :bindings),
-         _ <- Logger.info("websocket init for user #{user_id}"),
-         %User{} = user <- Users.get_user(user_id),
+  def init(
+        %{qs: "user_id=" <> user_id} = req,
+        state
+      )
+      when byte_size(user_id) > 0 do
+    with %User{} = user <- Users.get_user(user_id),
          _ <- Logger.info("user found: #{inspect(user)}"),
          _ <- Keeper.start_actor(user) do
-      {:cowboy_websocket, req, state |> Keyword.put(:user_id, user.id)}
+      {
+        :cowboy_websocket,
+        req,
+        state |> Keyword.put(:user_id, user.id),
+        %{idle_timeout: :infinity}
+      }
     end
   end
+
+  def init(_, _), do: {:error, :bad_request}
 
   defp handle(%{
          "type" => "reserve",
@@ -22,10 +31,11 @@ defmodule OurBikesWeb.Websocket do
          "platform_id" => platform_id
        }) do
     case Keeper.reserve(user_id, bike_id, platform_id) do
-      {:error, :already_reserved} -> %{"error" => "already_reserved"}
-      {:error, :already_in_use} -> %{"error" => "already_in_use"}
-      {:error, :bike_not_in_platform} -> %{"error" => "bike_not_in_platform"}
-      {:error, :single_reservation_per_user} -> %{"error" => "single_reservation_per_user"}
+      {:error, :already_reserved} -> %{"error" => "bike already reserved"}
+      {:error, :already_in_use} -> %{"error" => "bike already in use"}
+      {:error, :bike_not_in_platform} -> %{"error" => "bike not in platform"}
+      {:error, :single_reservation_per_user} -> %{"error" => "single reservation per user"}
+      {:error, :single_use_per_user} -> %{"error" => "single use per user"}
       {:ok, reserve} -> reserve
     end
   end
@@ -37,10 +47,12 @@ defmodule OurBikesWeb.Websocket do
          "platform_id" => platform_id
        }) do
     case Keeper.use(user_id, bike_id, platform_id) do
-      {:error, :not_reserved} -> %{"error" => "not_reserved"}
-      {:error, :reserved_by_another_user} -> %{"error" => "reserved_by_another_user"}
-      {:error, :bike_not_in_platform} -> %{"error" => "bike_not_in_platform"}
-      {:error, :already_in_use} -> %{"error" => "already_in_use"}
+      {:error, :not_reserved} -> %{"error" => "bike not reserved"}
+      {:error, :reserved_by_another_user} -> %{"error" => "reserved by another user"}
+      {:error, :single_use_per_user} -> %{"error" => "single use per user"}
+      {:error, :pending_reservation} -> %{"error" => "pending reservation"}
+      {:error, :bike_not_in_platform} -> %{"error" => "bike not in platform"}
+      {:error, :already_in_use} -> %{"error" => "bike already in use"}
       {:ok, using} -> using
     end
   end
@@ -52,8 +64,10 @@ defmodule OurBikesWeb.Websocket do
          "platform_id" => platform_id
        }) do
     case Keeper.give_back(user_id, bike_id, platform_id) do
-      {:error, :not_reserved} -> %{"error" => "not_reserved"}
-      {:error, :bike_not_in_platform} -> %{"error" => "bike_not_in_platform"}
+      {:error, :not_reserved} -> %{"error" => "bike not reserved"}
+      {:error, :reserved_by_another_user} -> %{"error" => "reserved by another user"}
+      {:error, :not_in_use} -> %{"error" => "bike not in use"}
+      {:error, :bike_not_in_platform} -> %{"error" => "bike not in platform"}
       {:ok, give_back} -> give_back
     end
   end

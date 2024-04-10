@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Our Bikes</title>
+  </head>
+  <body>
+    <ul id="bikes"></ul>
+    <ul id="notifications"></ul>
+  </body>
+  <script>
+    const getBikes = async (platformId) => {
+      const response = await fetch(
+        `http://localhost:4000/api/platforms/${platformId}/bikes`
+      );
+      const data = await response.json();
+
+      return data;
+    };
+
+    const url = new URLSearchParams(window.location.search);
+    const userId = url.get("user_id");
+    const platformId = url.get("platform_id");
+    const reserve = (bikeId, platformId) => ({
+      type: "reserve",
+      bike_id: bikeId,
+      platform_id: platformId,
+    });
+
+    const use = (bikeId, platformId) => ({
+      type: "use",
+      bike_id: bikeId,
+      platform_id: platformId,
+    });
+
+    const giveBack = (bikeId, platformId) => ({
+      type: "give_back",
+      bike_id: bikeId,
+      platform_id: platformId,
+    });
+
+    const mapStatus = {
+      available: "available",
+      reserved: "reserved",
+      in_use: "in use",
+    };
+
+    const buildBikesList = async () => {
+      const bikesList = document.getElementById("bikes");
+      bikesList.innerHTML = "";
+      const bikes = await getBikes(platformId);
+
+      bikes.forEach((bike) => {
+        const statusSpan = document.createElement("span");
+        statusSpan.innerText = mapStatus[bike.status];
+        statusSpan.classList.add(`status-${bike.status}`);
+
+        const priceSpan = document.createElement("span");
+        priceSpan.innerText = new Intl.NumberFormat("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(bike.price / 100);
+
+        const reserveButton = document.createElement("button");
+        reserveButton.innerText = "Reserve";
+        if (bike.status !== "available") {
+          reserveButton.disabled = true;
+          reserveButton.classList.add("disabled");
+        } else {
+          reserveButton.classList.add("reserve");
+        }
+        const useButton = document.createElement("button");
+        useButton.innerText = "Use";
+        if (bike.status === "in_use") {
+          useButton.disabled = true;
+          useButton.classList.add("disabled");
+        } else {
+          useButton.classList.add("use");
+        }
+        const giveBackButton = document.createElement("button");
+        giveBackButton.innerText = "Give Back";
+        if (bike.status !== "in_use") {
+          giveBackButton.disabled = true;
+          giveBackButton.classList.add("disabled");
+        } else {
+          giveBackButton.classList.add("give-back");
+        }
+
+        reserveButton.addEventListener("click", (e) => {
+          e.preventDefault();
+          ws.send(JSON.stringify(reserve(bike.id, bike.platform_id)));
+        });
+
+        useButton.addEventListener("click", (e) => {
+          e.preventDefault();
+          ws.send(JSON.stringify(use(bike.id, bike.platform_id)));
+        });
+
+        giveBackButton.addEventListener("click", (e) => {
+          e.preventDefault();
+          ws.send(JSON.stringify(giveBack(bike.id, bike.platform_id)));
+        });
+
+        const bikeIdH4 = document.createElement("h4");
+        bikeIdH4.innerText = `#${bike.id} ${bike.type}`;
+        const bikeIcon = document.createElement("img");
+        bikeIcon.src = `http://localhost:4000/images/${bike.type}.webp`;
+        bikeIcon.width = 300;
+        bikeIcon.height = 300;
+        bikeIcon.alt = "bike";
+
+        const li = document.createElement("li");
+        li.classList.add("bike");
+        li.appendChild(bikeIdH4);
+        li.appendChild(bikeIcon);
+
+        li.appendChild(statusSpan);
+        li.appendChild(priceSpan);
+        li.appendChild(reserveButton);
+        li.appendChild(useButton);
+        li.appendChild(giveBackButton);
+
+        bikesList.appendChild(li);
+      });
+    };
+
+    const ws = new WebSocket(`ws://localhost:4000/ws?user_id=${userId}`);
+
+    ws.onmessage = async (msg) => {
+      const data = JSON.parse(msg.data);
+
+      if (data.error) {
+        const notifications = document.getElementById("notifications");
+        const li = document.createElement("li");
+        li.innerText = data.error;
+        li.classList.add("notification");
+        notifications.appendChild(li);
+
+        setTimeout(() => {
+          notifications.removeChild(li);
+        }, 5000);
+      }
+
+      await buildBikesList();
+    };
+
+    ws.onopen = () => {
+      console.log("connected");
+    };
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      await buildBikesList();
+    });
+  </script>
+
+  <style>
+    /* poppins cdn */
+    @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap");
+
+    html,
+    * {
+      font-family: "Poppins", sans-serif;
+      outline: none;
+      box-sizing: border-box;
+      padding: 0;
+      margin: 0;
+    }
+
+    #bikes {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      padding: 10px;
+    }
+
+    .bike {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .bike h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .bike h4 {
+      font-size: 1rem;
+      font-weight: 500;
+      color: gray;
+    }
+
+    .status-available {
+      color: green;
+    }
+
+    .status-reserved {
+      color: orange;
+    }
+
+    .status-in_use {
+      color: red;
+    }
+
+    button {
+      padding: 5px;
+      margin-top: 4px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 600;
+      width: 100%;
+    }
+
+    button.reserve {
+      background-color: #4caf50;
+      color: white;
+    }
+
+    button.use {
+      background-color: transparent;
+      color: #ff9800;
+      border: 1px solid #ff9800;
+    }
+
+    button.give-back {
+      background-color: transparent;
+      color: #f44336;
+      border: 1px solid #f44336;
+    }
+
+    button.disabled {
+      background-color: #ccc;
+      color: white;
+      cursor: not-allowed;
+    }
+
+    #notifications {
+      list-style: none;
+      padding: 10px;
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+    }
+
+    .notification {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+  </style>
+</html>
